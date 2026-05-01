@@ -29,3 +29,7 @@ shadingway.addon-state.json
 /reshade-shaders/Textures/AS
 /reshade-shaders/Shaders/IniNotes
 /md/license-analysis
+/reshade-shaders/Shaders/AS_StageFX/docs
+/reshade-shaders/Shaders/AS_StageFX/packages
+/reshade-shaders/Shaders/AS_StageFX/shaders
+/reshade-shaders/Shaders/AS_StageFX
