@@ -10,13 +10,19 @@
 // - Example: Access frequency bands with Listeningway_FreqBands[0] (bass) to [N-1] (treble).
 // - See README.md for more details and practical examples.
 
-#define LISTENINGWAY_NUM_BANDS 32
+#define LISTENINGWAY_NUM_BANDS 64
 #define LISTENINGWAY_INSTALLED 1
 
 // Annotation-based (required)
 uniform float Listeningway_Volume < source = "listeningway_volume"; >;
 uniform float Listeningway_FreqBands[LISTENINGWAY_NUM_BANDS] < source = "listeningway_freqbands"; >;
 uniform float Listeningway_Beat < source = "listeningway_beat"; >;
+// Live band count published by Listeningway. Equals the number of bands the
+// addon is currently producing (the configured setting), which may be less
+// than LISTENINGWAY_NUM_BANDS. Shaders should traverse only the first
+// int(Listeningway_NumBands) entries of Listeningway_FreqBands; entries
+// beyond that are never written and will read as zero / stale.
+uniform float Listeningway_NumBands < source = "listeningway_numbands"; > = float(LISTENINGWAY_NUM_BANDS);
 
 // Time uniforms (added)
 uniform float Listeningway_TimeSeconds < source = "listeningway_timeseconds"; >;
@@ -24,3 +30,23 @@ uniform float Listeningway_TimePhase60Hz < source = "listeningway_timephase60hz"
 uniform float Listeningway_TimePhase120Hz < source = "listeningway_timephase120hz"; >;
 uniform float Listeningway_TotalPhases60Hz < source = "listeningway_totalphases60hz"; >;
 uniform float Listeningway_TotalPhases120Hz < source = "listeningway_totalphases120hz"; >;
+
+// Stereo spatialization uniforms
+uniform float Listeningway_VolumeLeft < source = "listeningway_volumeleft"; >;
+uniform float Listeningway_VolumeRight < source = "listeningway_volumeright"; >;
+uniform float Listeningway_AudioPan < source = "listeningway_audiopan"; >;
+
+// Audio format uniform (0=none, 1=mono, 2=stereo, 6=5.1, 8=7.1)
+uniform float Listeningway_AudioFormat < source = "listeningway_audioformat"; >;
+
+// Directional intensity uniforms (8-bucket rose): [Front, FR, Right, BR, Back, BL, Left, FL]
+uniform float Listeningway_Direction8[8] < source = "listeningway_direction8"; >;
+// Named aliases for convenience
+uniform float Listeningway_Front < source = "listeningway_front"; >;
+uniform float Listeningway_FrontRight < source = "listeningway_front_right"; >;
+uniform float Listeningway_Right < source = "listeningway_right"; >;
+uniform float Listeningway_BackRight < source = "listeningway_back_right"; >;
+uniform float Listeningway_Back < source = "listeningway_back"; >;
+uniform float Listeningway_BackLeft < source = "listeningway_back_left"; >;
+uniform float Listeningway_Left < source = "listeningway_left"; >;
+uniform float Listeningway_FrontLeft < source = "listeningway_front_left"; >;
