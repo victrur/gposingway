@@ -13,6 +13,10 @@
 
     Copyright (c) Pascal Gilcher / Marty McFly. All rights reserved.
 
+    *** CHANGELOG ***
+    2025-07-24 - Leon Aquitaine:
+    - Converted all drag uniforms to slider uniforms for improved ease of use.
+
 =============================================================================*/
 
 /*
@@ -46,7 +50,7 @@ uniform bool bADOF_AutofocusEnable <
 > = true;
 
 uniform float2 fADOF_AutofocusCenter <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
     ui_label = "Autofocus Center";
     ui_tooltip = "X and Y coordinates of autofocus center. Axes start from upper left screen corner.";
@@ -54,7 +58,7 @@ uniform float2 fADOF_AutofocusCenter <
 > = float2(0.5, 0.5);
 
 uniform float fADOF_AutofocusRadius <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 1.0;
     ui_label = "Autofocus sample radius";
@@ -63,7 +67,7 @@ uniform float fADOF_AutofocusRadius <
 > = 0.6;
 
 uniform float fADOF_AutofocusSpeed <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.05;
     ui_max = 1.0;
     ui_label = "Autofocus Adjustment Speed";
@@ -72,7 +76,7 @@ uniform float fADOF_AutofocusSpeed <
 > = 0.1;
 
 uniform float fADOF_ManualfocusDepth <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 1.0;
     ui_label = "Manual focus depth";
@@ -81,7 +85,7 @@ uniform float fADOF_ManualfocusDepth <
 > = 0.001;
 
 uniform float fADOF_NearBlurCurve <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.5;
     ui_max = 6.0;
     ui_label = "Near blur curve";
@@ -89,7 +93,7 @@ uniform float fADOF_NearBlurCurve <
 > = 6.0;
 
 uniform float fADOF_FarBlurCurve <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.5;
     ui_max = 6.0;
     ui_label = "Far blur curve";
@@ -97,7 +101,7 @@ uniform float fADOF_FarBlurCurve <
 > = 1.5;
 
 uniform float fADOF_HyperFocus <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 1.0;
     ui_label = "Hyperfocal depth distance";
@@ -105,7 +109,7 @@ uniform float fADOF_HyperFocus <
 > = 0.10;
 
 uniform float fADOF_RenderResolutionMult <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.5;
     ui_max = 1.0;
     ui_label = "Size Scale";
@@ -114,7 +118,7 @@ uniform float fADOF_RenderResolutionMult <
 > = 0.5;
 
 uniform float fADOF_ShapeRadius <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 100.0;
     ui_label = "Bokeh Maximal Blur Size";
@@ -123,7 +127,7 @@ uniform float fADOF_ShapeRadius <
 > = 20.5;
 
 uniform float fADOF_SmootheningAmount <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 20.0;
     ui_label = "Gaussian blur width";
@@ -132,7 +136,7 @@ uniform float fADOF_SmootheningAmount <
 > = 4.0;
 
 uniform float fADOF_BokehIntensity <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 1.0;
     ui_label = "Bokeh Intensity";
@@ -150,7 +154,7 @@ uniform int iADOF_BokehMode <
 > = 2;
 
 uniform int iADOF_ShapeVertices <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 3;
     ui_max = 9;
     ui_label = "Bokeh shape vertices";
@@ -159,7 +163,7 @@ uniform int iADOF_ShapeVertices <
 > = 6;
 
 uniform int iADOF_ShapeQuality <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 2;
     ui_max = 25;
     ui_label = "Bokeh shape quality";
@@ -167,7 +171,7 @@ uniform int iADOF_ShapeQuality <
 > = 5;
 
 uniform float fADOF_ShapeCurvatureAmount <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = -1.0;
     ui_max = 1.0;
     ui_label = "Bokeh shape roundness";
@@ -176,7 +180,7 @@ uniform float fADOF_ShapeCurvatureAmount <
 > = 1.0;
 
 uniform float fADOF_ShapeRotation <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 360.0;
     ui_label = "Bokeh shape rotation";
@@ -184,7 +188,7 @@ uniform float fADOF_ShapeRotation <
 > = 0.0;
 
 uniform float fADOF_ShapeAnamorphRatio <
-    ui_type = "drag";
+    ui_type = "slider";
     ui_min = 0.0;
     ui_max = 1.0;
     ui_label = "Bokeh shape aspect ratio";
@@ -193,7 +197,7 @@ uniform float fADOF_ShapeAnamorphRatio <
 
 #if(ADOF_OPTICAL_VIGNETTE_ENABLE != 0)
     uniform float fADOF_ShapeVignetteCurve <
-        ui_type = "drag";
+        ui_type = "slider";
         ui_min = 0.5;
         ui_max = 2.5;
         ui_label = "Bokeh shape vignette curve";
@@ -201,7 +205,7 @@ uniform float fADOF_ShapeAnamorphRatio <
     > = 0.75;
 
     uniform float fADOF_ShapeVignetteAmount <
-        ui_type = "drag";
+        ui_type = "slider";
         ui_min = 0.0;
         ui_max = 2.0;
         ui_label = "Bokeh shape vignette amount";
@@ -211,7 +215,7 @@ uniform float fADOF_ShapeAnamorphRatio <
 
 #if(ADOF_CHROMATIC_ABERRATION_ENABLE != 0)
     uniform float fADOF_ShapeChromaAmount <
-        ui_type = "drag";
+        ui_type = "slider";
         ui_min = -1.0;
         ui_max = 1.0;
         ui_label = "Shape chromatic aberration amount";
@@ -219,7 +223,7 @@ uniform float fADOF_ShapeAnamorphRatio <
     > = -0.1;
 
     uniform int iADOF_ShapeChromaMode <
-        ui_type = "drag";
+        ui_type = "slider";
         ui_min = 0;
         ui_max = 2;
         ui_label = "Shape chromatic aberration type";
