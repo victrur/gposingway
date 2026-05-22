@@ -70,8 +70,30 @@ uniform float Sharpening <
 #include "ReShade.fxh"
 #define pixel float2(BUFFER_RCP_WIDTH, BUFFER_RCP_HEIGHT)
 
+// Shadingway / REST UI bypass: when either addon is firing render_effects
+// mid-frame against a pre-UI RT, the back-buffer data is already linear
+// (the engine's final sRGB encode hasn't run yet), so the hardware sRGB
+// read-decode and write-encode that CAS normally relies on would apply
+// gamma twice and visibly darken the image.
+//
+// We check both signals so the patch works regardless of which addon is
+// installed:
+//   * ADDON_RESHADE_EFFECT_SHADER_TOGGLER     — auto-published by ReShade
+//     when REST's addon DLL is loaded.
+//   * ADDON_SHADINGWAY_PRESERVE_UI_ACTIVE     — published by Shadingway
+//     when its own bypass is enabled OR REST is detected.
+// Either being true means hardware sRGB conversion should be skipped.
+#ifndef ADDON_SHADINGWAY_PRESERVE_UI_ACTIVE
+    #define ADDON_SHADINGWAY_PRESERVE_UI_ACTIVE 0
+#endif
+#define CAS_BYPASS_HW_SRGB (ADDON_SHADINGWAY_PRESERVE_UI_ACTIVE || ADDON_RESHADE_EFFECT_SHADER_TOGGLER)
+
 texture TexColor : COLOR;
-sampler sTexColor {Texture = TexColor; SRGBTexture = true;};
+#if CAS_BYPASS_HW_SRGB
+    sampler sTexColor {Texture = TexColor;};
+#else
+    sampler sTexColor {Texture = TexColor; SRGBTexture = true;};
+#endif
 
 float3 CASPass(float4 vpos : SV_Position, float2 texcoord : TexCoord) : SV_Target
 {	
@@ -173,6 +195,8 @@ technique ContrastAdaptiveSharpen
 	{
 		VertexShader = PostProcessVS;
 		PixelShader = CASPass;
+#if !CAS_BYPASS_HW_SRGB
 		SRGBWriteEnable = true;
+#endif
 	}
 }
