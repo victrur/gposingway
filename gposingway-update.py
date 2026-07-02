@@ -733,16 +733,18 @@ def setup_linux_dependencies():
         "steamapps/compatdata/*/pfx/drive_c/windows/system32/d3dcompiler_47.dll",
         "steamapps/compatdata/*/pfx/drive_c/Program Files (x86)/Microsoft/EdgeWebView/Application/*/d3dcompiler_47.dll"
     ]
+    # Generate a flat list of absolute glob search queries
+    search_queries = []
     for base_path in search_paths:
-        if not os.path.exists(base_path):
-            continue
-        for pattern in patterns:
-            full_pattern = os.path.join(base_path, pattern)
-            for match in glob.glob(full_pattern):
-                if validate_pe_dll(match):
-                    found_dll_path = match
-                    break
-            if found_dll_path:
+        if os.path.exists(base_path):
+            for pattern in patterns:
+                search_queries.append(os.path.join(base_path, pattern))
+
+    # Perform a sequential search across all queries
+    for query in search_queries:
+        for match in glob.glob(query):
+            if validate_pe_dll(match):
+                found_dll_path = match
                 break
         if found_dll_path:
             break
