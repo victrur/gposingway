@@ -724,7 +724,7 @@ def setup_linux_dependencies():
 
     found_dll_path = None
     
-    # Method A: Targeted glob search in Proton/Steam folders (extremely fast, Big O(1) files)
+    # Method A: Targeted glob search in Proton/Steam folders 
     patterns = [
         "steamapps/common/Proton*/files/lib/wine/x86_64-windows/d3dcompiler_47.dll",
         "steamapps/common/Proton*/files/lib64/wine/x86_64-windows/d3dcompiler_47.dll",
