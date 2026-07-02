@@ -5,7 +5,10 @@ import shutil
 import json
 import urllib.request
 import zipfile
+import hashlib
+import glob
 from datetime import datetime
+from urllib.parse import urlparse
 
 # Helper to handle inputs safely (avoiding EOFError in non-interactive/piped environments)
 def safe_input(prompt=""):
@@ -275,7 +278,8 @@ def main():
         # Download main zip
         print_info("Downloading latest GPosingway package...")
         zip_path = os.path.join(TEMP_DIR, "gposingway.zip")
-        if not download_file(gposingway_url, zip_path):
+        expected_gposingway_hash = definitions.get("gposingwayHash")
+        if not download_file(gposingway_url, zip_path, expected_hash=expected_gposingway_hash):
             safe_input("\nPress Enter to exit...")
             sys.exit(1)
 
@@ -325,7 +329,8 @@ def main():
                 os.makedirs(addon_temp, exist_ok=True)
 
                 addon_zip = os.path.join(addon_temp, f"{name}.zip")
-                if download_file(url, addon_zip):
+                expected_addon_hash = addon.get("Hash")
+                if download_file(url, addon_zip, expected_hash=expected_addon_hash):
                     if extract_zip(addon_zip, addon_temp):
                         # Parse mappings: e.g. "iMMERSE-main\\Shaders:reshade-shaders\\Shaders"
                         mappings = mappings_str.split(';')
@@ -389,7 +394,7 @@ def main():
         print("\n" + "=" * 60)
         print("\033[93m★ LINUX WINE / PROTON POST-INSTALLATION TIPS ★\033[0m")
         print("DLL overrides have been automatically configured in your Wine prefix registry!")
-        print("You don't need to configure manual launch environment variables.")
+        print("You DO NOT need to configure manual launch environment variables anymore.")
         print("ReShade and the D3D compiler should now load automatically in-game.")
         print("=" * 60 + "\n")
 
@@ -423,11 +428,20 @@ def setup_dxgi_dll(definitions):
 
     print_info(f"dxgi.dll (ReShade) is missing. Downloading official ReShade {version_str} with Add-on support...")
     temp_setup_path = os.path.join(TEMP_DIR, f"ReShade_Setup_{version_str}_Addon.exe")
+    expected_reshade_hash = definitions.get("reshadeHash")
 
-    if download_file(reshade_url, temp_setup_path):
+    if download_file(reshade_url, temp_setup_path, expected_hash=expected_reshade_hash):
         try:
             print_info("Extracting ReShade64.dll from installer...")
             with zipfile.ZipFile(temp_setup_path, 'r') as zip_ref:
+                # Zip Slip Protection check during manual extraction from single EXE/ZIP
+                target_path = os.path.abspath(dxgi_dest)
+                base_dir = os.path.abspath(GAME_DIR)
+                base_dir_with_sep = base_dir + os.sep
+                if not (target_path.startswith(base_dir_with_sep) or target_path == base_dir):
+                    print_error("Security Exception: Blocked extraction path escape attempt for ReShade64.dll")
+                    return
+                
                 with zip_ref.open("ReShade64.dll") as source, open(dxgi_dest, 'wb') as target:
                     shutil.copyfileobj(source, target)
             os.chmod(dxgi_dest, 0o755)
@@ -709,31 +723,54 @@ def setup_linux_dependencies():
         search_paths.append(os.path.dirname(steamapps_dir))
 
     found_dll_path = None
-    for search_path in search_paths:
-        if not os.path.exists(search_path):
+    
+    # Method A: Targeted glob search in Proton/Steam folders (extremely fast, Big O(1) files)
+    patterns = [
+        "steamapps/common/Proton*/files/lib/wine/x86_64-windows/d3dcompiler_47.dll",
+        "steamapps/common/Proton*/files/lib64/wine/x86_64-windows/d3dcompiler_47.dll",
+        "steamapps/common/Proton*/dist/lib/wine/x86_64-windows/d3dcompiler_47.dll",
+        "steamapps/common/Proton*/dist/lib64/wine/x86_64-windows/d3dcompiler_47.dll",
+        "steamapps/compatdata/*/pfx/drive_c/windows/system32/d3dcompiler_47.dll",
+        "steamapps/compatdata/*/pfx/drive_c/Program Files (x86)/Microsoft/EdgeWebView/Application/*/d3dcompiler_47.dll"
+    ]
+    for base_path in search_paths:
+        if not os.path.exists(base_path):
             continue
-        for root, dirs, files in os.walk(search_path):
-            if any(p in root for p in ["/proc", "/sys", "/dev", "/run", "/tmp", "/etc", "/var/log"]):
-                continue
-            if "d3dcompiler_47.dll" in files:
-                full_path = os.path.join(root, "d3dcompiler_47.dll")
-                try:
-                    # Microsoft's official DLL is ~3.8MB to ~4.7MB. Wine stub is ~370KB.
-                    if os.path.getsize(full_path) > 3 * 1024 * 1024:
-                        # Parse PE header to verify it's x86-64 (64-bit)
-                        with open(full_path, 'rb') as f:
-                            header = f.read(1024)
-                            if header.startswith(b'MZ'):
-                                pe_offset = int.from_bytes(header[0x3C:0x40], byteorder='little')
-                                if pe_offset + 24 < len(header) and header[pe_offset:pe_offset+4] == b'PE\x00\x00':
-                                    machine = int.from_bytes(header[pe_offset+4:pe_offset+6], byteorder='little')
-                                    if machine == 0x8664:  # AMD64 (64-bit)
-                                        found_dll_path = full_path
-                                        break
-                except OSError:
-                    pass
+        for pattern in patterns:
+            full_pattern = os.path.join(base_path, pattern)
+            for match in glob.glob(full_pattern):
+                if validate_pe_dll(match):
+                    found_dll_path = match
+                    break
+            if found_dll_path:
+                break
         if found_dll_path:
             break
+
+    # Method B: Depth-limited walk search (fallback, restricted to max depth of 4 levels)
+    if not found_dll_path:
+        print_info("Proton common folder match empty. Running depth-limited fallback search...")
+        for search_path in search_paths:
+            if not os.path.exists(search_path):
+                continue
+            
+            search_path_abs = os.path.abspath(search_path)
+            num_sep = search_path_abs.count(os.sep)
+            max_depth = 4
+            
+            for root, dirs, files in os.walk(search_path_abs):
+                # Prune walk depth
+                num_sep_this = root.count(os.sep)
+                if num_sep + max_depth <= num_sep_this:
+                    del dirs[:]
+                
+                if "d3dcompiler_47.dll" in files:
+                    full_path = os.path.join(root, "d3dcompiler_47.dll")
+                    if validate_pe_dll(full_path):
+                        found_dll_path = full_path
+                        break
+            if found_dll_path:
+                break
 
     if not found_dll_path:
         print_warning("Could not find a native Microsoft d3dcompiler_47.dll (64-bit) on your system.")
@@ -773,6 +810,22 @@ def is_ffxiv_prefix(pfx_path):
             pass
     return False
 
+def validate_pe_dll(full_path):
+    """Verify if the given file is a valid 64-bit PE (Microsoft DLL) and has size > 3MB."""
+    try:
+        if os.path.getsize(full_path) > 3 * 1024 * 1024:
+            with open(full_path, 'rb') as f:
+                header = f.read(1024)
+                if header.startswith(b'MZ'):
+                    pe_offset = int.from_bytes(header[0x3C:0x40], byteorder='little')
+                    if pe_offset + 24 < len(header) and header[pe_offset:pe_offset+4] == b'PE\x00\x00':
+                        machine = int.from_bytes(header[pe_offset+4:pe_offset+6], byteorder='little')
+                        if machine == 0x8664:  # AMD64 (64-bit)
+                            return True
+    except OSError:
+        pass
+    return False
+
 def copy_dll_file(src, dest, dest_desc):
     try:
         # Check if destination file exists and is already native (size > 3MB)
@@ -788,7 +841,64 @@ def copy_dll_file(src, dest, dest_desc):
     except Exception as e:
         print_warning(f"Could not copy d3dcompiler_47.dll to {dest_desc}: {e}")
 
-def download_file(url, dest_path):
+def is_safe_url(url):
+    """Validate that the URL is using HTTPS and belongs to a whitelist of trusted domains."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme != 'https':
+            print_error(f"Security Policy: Blocked unsafe protocol '{parsed.scheme}' for URL: {url}")
+            return False
+        
+        allowed_domains = [
+            "github.com",
+            "raw.githubusercontent.com",
+            "reshade.me"
+        ]
+        
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        
+        hostname = hostname.lower()
+        for domain in allowed_domains:
+            if hostname == domain or hostname.endswith('.' + domain):
+                return True
+        
+        print_error(f"Security Policy: Blocked untrusted domain '{hostname}' for URL: {url}")
+        return False
+    except Exception as e:
+        print_error(f"Failed to parse URL during safety check: {e}")
+        return False
+
+def verify_file_hash(file_path, expected_hash):
+    """Verify the SHA-256 integrity hash of a file."""
+    if not expected_hash:
+        print_warning(f"No integrity hash defined for {os.path.basename(file_path)}. Skipping integrity check.")
+        return True
+
+    sha256 = hashlib.sha256()
+    try:
+        with open(file_path, 'rb') as f:
+            while chunk := f.read(8192):
+                sha256.update(chunk)
+        calculated = sha256.hexdigest().lower()
+        expected = expected_hash.strip().lower()
+        if calculated == expected:
+            print_success(f"Integrity check passed for {os.path.basename(file_path)}")
+            return True
+        else:
+            print_error(f"Integrity validation failed for {os.path.basename(file_path)}!")
+            print(f"  Calculated SHA-256: {calculated}")
+            print(f"  Expected SHA-256:   {expected}")
+            return False
+    except Exception as e:
+        print_error(f"Failed to calculate integrity hash for {file_path}: {e}")
+        return False
+
+def download_file(url, dest_path, expected_hash=None):
+    if not is_safe_url(url):
+        return False
+
     try:
         req = urllib.request.Request(
             url, 
@@ -796,15 +906,38 @@ def download_file(url, dest_path):
         )
         with urllib.request.urlopen(req) as response, open(dest_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
+        
+        # Verify hash if expected_hash is defined
+        if expected_hash:
+            return verify_file_hash(dest_path, expected_hash)
+            
         return True
     except Exception as e:
         print_error(f"Failed to download: {e}")
         return False
 
 def extract_zip(zip_path, extract_dir):
+    """Extracts a ZIP file safely preventing path traversal vulnerability (Zip Slip)."""
     try:
+        base_dir = os.path.abspath(extract_dir)
+        base_dir_with_sep = base_dir + os.sep
+        
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_dir)
+            for member in zip_ref.infolist():
+                # Resolve target path and clean traversal sequences
+                target_path = os.path.abspath(os.path.join(base_dir, member.filename))
+                
+                # Check path traversal
+                if not (target_path.startswith(base_dir_with_sep) or target_path == base_dir):
+                    print_error(f"Security Exception: Blocked Zip Slip attempt: {member.filename} (resolved to {target_path})")
+                    return False
+                
+                if member.is_dir():
+                    os.makedirs(target_path, exist_ok=True)
+                else:
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    with zip_ref.open(member) as source, open(target_path, 'wb') as target:
+                        shutil.copyfileobj(source, target)
         return True
     except Exception as e:
         print_error(f"Extraction failed: {e}")
